@@ -1,7 +1,7 @@
 // TravelSearchForm.js
-import React, { useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import { Card, CardContent, Button, TextField, Select, MenuItem, FormControl, InputLabel, Grid, Box } from '@mui/material';
-import { fetchData } from './api';
+import {fetchData, fetchHello} from './api';
 
 const TravelSearchForm = () => {
     const [startDate, setStartDate] = useState('');
@@ -39,7 +39,7 @@ const TravelSearchForm = () => {
     const handleDateChange = (setter, value, otherDate, checkFunc) => {
         setter(value);
         if (value && otherDate) {
-            if (checkFunc(value, otherDate) < 0) {
+            if (checkFunc(value, otherDate) > 0) {
                 alert('日期範圍不正確');
                 setter('');
             }
