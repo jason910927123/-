@@ -17,14 +17,14 @@ export default defineConfig({
         },
     },
     server: {
-        // port: 5173,  // 如果有需要，你可以啟用這個選項來指定開發伺服器的端口
+        port: 5173,  // 自定義開發伺服器的端口
         proxy: {
             '/api': {
-                target: 'http://dev.rx-bear.work/',
+                target: 'http://localhost:8080/api',  // 指定後端伺服器的完整URL，包括端口號
                 changeOrigin: true,
-                secure: false,  // 如果目標是 HTTPS，但證書無效，這將忽略證書問題
+                secure: false,  // 忽略 SSL 證書問題（如果是 HTTPS）
+                rewrite: (path) => path.replace(/^\/api/, '')  // 可選：如果後端不需要 `/api` 前綴，可以移除它
             },
         },
-        historyApiFallback: true,  // 確保前端路由正確處理
     },
 })
