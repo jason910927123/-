@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -22,8 +25,8 @@ public class OpenAIService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    public String generateTravelPlan(Map<String, Object> data) {
-        // 確認data不為空
+    public List<Map<String, Object>> generateTravelPlan(Map<String, Object> data) {
+        // 確認 data 不為空
         if (data == null || data.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No data provided");
         }
@@ -44,13 +47,13 @@ public class OpenAIService {
                 "作為一位專業的旅行規劃師，請根據以下條件設計一個詳細的旅行行程：\n" +
                         "- 預算限制：%s 新台幣\n" +
                         "- 旅行目的：%s（如休閒度假、冒險探索、美食之旅等）\n" +
-                        "- 出發日期和季節：%s\n" +
+                        "- 出發日期：%s\n" +
                         "- 計劃行程天數：%s 天\n" +
                         "- 旅行目的地：%s\n\n" +
                         "請提供以下詳細內容：\n" +
                         "1. 每日的具體行程安排，包括上午、下午和晚間的活動建議。\n" +
                         "2. 推薦的景點（至少三個），並附上簡短的描述和適合的時間段。\n" +
-                        "3. 餐廳建議，包括名稱、菜系、平均價格、聯繫電話以及經緯度位置。\n" +
+                        "3. 餐廳建議，經緯度位置。\n" +
                         "4. 每日預算分配和建議開銷，以確保符合整體預算限制。\n\n" +
                         "請用清晰條理的方式呈現行程，並確保資訊精確且符合專業水準。",
                 budget, purpose, season, day, place
@@ -68,18 +71,44 @@ public class OpenAIService {
 
         HttpEntity<String> entity = new HttpEntity<>(payload.toString(), headers);
 
-        // 發送請求到OpenAI API
+        // 發送請求到 OpenAI API
         String url = "https://api.openai.com/v1/chat/completions";
         ResponseEntity<String> openaiResponse = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
         // 解析並回傳結果
         JSONObject responseJson = new JSONObject(openaiResponse.getBody());
         if (responseJson.has("choices") && responseJson.getJSONArray("choices").length() > 0) {
-            return responseJson.getJSONArray("choices")
+            String content = responseJson.getJSONArray("choices")
                     .getJSONObject(0)
                     .getJSONObject("message")
                     .getString("content")
                     .trim();
+
+            // 假設回應內容為 JSON 格式的行程資料，解析並將其存入陣列
+            JSONArray travelArray = new JSONArray(content);
+            List<Map<String, Object>> travelDataList = new ArrayList<>();
+
+            for (int i = 0; i < travelArray.length(); i++) {
+                JSONObject travelItem = travelArray.getJSONObject(i);
+
+                // 提取所需字段
+                String date = travelItem.optString("date", "");  // 日期
+                String time = travelItem.optString("time", "");  // 時間
+                String placeName = travelItem.optString("place", "");  // 地點
+                double latitude = travelItem.optDouble("latitude", 0);  // 緯度
+                double longitude = travelItem.optDouble("longitude", 0);  // 經度
+
+                // 封裝成 Map
+                Map<String, Object> travelData = new HashMap<>();
+                travelData.put("date", date);
+                travelData.put("time", time);
+                travelData.put("place", placeName);
+                travelData.put("latitude", latitude);
+                travelData.put("longitude", longitude);
+
+                travelDataList.add(travelData);
+            }
+            return travelDataList;
         } else {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid response from OpenAI");
         }

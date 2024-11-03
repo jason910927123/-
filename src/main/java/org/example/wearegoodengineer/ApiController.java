@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -23,8 +24,8 @@ public class ApiController {
     public ResponseEntity<?> moreOpenAI(@RequestBody Map<String, Object> data) {
         try {
             // 調用服務層來處理具體邏輯
-            String responseText = openAIService.generateTravelPlan(data);
-            return ResponseEntity.ok(Map.of("response", responseText));
+            List<Map<String, Object>> responseList = openAIService.generateTravelPlan(data);
+            return ResponseEntity.ok(Map.of("response", responseList));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
