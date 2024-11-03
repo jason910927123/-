@@ -32,11 +32,12 @@ public class OpenAIService {
         }
 
         // 解析並檢查所需字段
-        String budget = (String) data.get("budget");
-        String purpose = (String) data.get("purpose");
-        String season = (String) data.get("season");
-        String day = (String) data.get("day");
-        String place = (String) data.get("place");
+        String budget = String.valueOf(data.get("budget"));
+        String purpose = String.valueOf(data.get("purpose"));
+        String season = String.valueOf(data.get("season"));
+        String day = String.valueOf(data.get("day"));
+        String place = String.valueOf(data.get("place"));
+
 
         if (budget == null || purpose == null || season == null || day == null || place == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing one or more required fields");
@@ -74,6 +75,8 @@ public class OpenAIService {
         // 發送請求到 OpenAI API
         String url = "https://api.openai.com/v1/chat/completions";
         ResponseEntity<String> openaiResponse = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+        //檢查回送內容
+        System.out.println(openaiResponse.getBody());
 
         // 解析並回傳結果
         JSONObject responseJson = new JSONObject(openaiResponse.getBody());
