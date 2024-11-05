@@ -1,7 +1,20 @@
 // TravelSearchForm.js
 import React, {useEffect, useState} from 'react';
-import { Card, CardContent, Button, TextField, Select, MenuItem, FormControl, InputLabel, Grid, Box } from '@mui/material';
-import {fetchData, fetchHello} from './api';
+import {
+    Card,
+    CardContent,
+    Button,
+    TextField,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    Grid,
+    Box,
+    Paper, Typography
+} from '@mui/material';
+import {fetchData} from '../api.js';
+import {useNavigate} from "react-router-dom";
 
 const TravelSearchForm = () => {
     const [startDate, setStartDate] = useState('');
@@ -9,6 +22,7 @@ const TravelSearchForm = () => {
     const [budget, setBudget] = useState('');
     const [destination, setDestination] = useState('');
     const [travelType, setTravelType] = useState('');
+    const navigate = useNavigate(); // Initialize the navigation hook
 
     const calculateDays = (start, end) => {
         const startDateTime = new Date(start);
@@ -19,7 +33,7 @@ const TravelSearchForm = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         const data = {
-            season: startDate,
+            startDate: startDate,
             endDate,
             day: calculateDays(startDate, endDate),
             budget,
@@ -29,8 +43,14 @@ const TravelSearchForm = () => {
 
         try {
             const responseData = await fetchData(data);
-            console.log('Success:', responseData);
-            alert('搜尋成功！');
+
+            if (responseData.status === 200) { // Check for a successful status
+                console.log('Success:', responseData);
+                alert('搜尋成功！');
+                navigate('/Travel'); // Redirect to the /Travel route
+            } else {
+                alert('搜尋失敗，請檢查輸入。');
+            }
         } catch (error) {
             alert('發生錯誤：' + error.message);
         }
@@ -47,7 +67,11 @@ const TravelSearchForm = () => {
     };
 
     return (
-        <Card sx={{ maxWidth: 600, margin: 'auto', mt: 2 }}>
+        <Paper sx={{ maxWidth: "50%",minHeight:"50%", mt: 2,backgroundColor: '#fffd',padding: '10px',borderRadius:"2rem" }}>
+            <Typography variant="h4" sx={{ mb: 2 }}>
+                開始規劃你的旅程
+            </Typography>
+
             <CardContent>
                 <Box component="form" onSubmit={handleSubmit} sx={{ '& .MuiTextField-root': { mb: 2 } }}>
                     <Grid container spacing={2}>
@@ -81,7 +105,7 @@ const TravelSearchForm = () => {
                     </Grid>
                 </Box>
             </CardContent>
-        </Card>
+        </Paper>
     );
 };
 
