@@ -27,9 +27,8 @@ dependencies {
     implementation 'org.postgresql:postgresql'
 
     // Google Maps
-//    implementation 'com.google.maps:google-maps-services:0.24.0'
-//    implementation 'org.slf4j:slf4j-simple:1.7.25'
-    implementation 'com.google.appengine:appengine-api-1.0-sdk:2.0.31'
+    implementation 'com.google.maps:google-maps-services:2.2.0'
+    implementation 'org.slf4j:slf4j-simple:1.7.25'
 
     // Utils
     implementation 'org.json:json:20210307'
