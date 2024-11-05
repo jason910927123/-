@@ -1,13 +1,20 @@
 // Content.js
 import React from 'react';
-import TravelSearchForm from './TravelSearchForm.jsx';
-import { Typography } from '@mui/material';
+import TravelSearchForm from './Content/TravelSearchForm.jsx';
+import {Grid, Typography} from '@mui/material';
 
-const Home = () => (
-    <div>
-        <Typography variant="h4" sx={{ textAlign: 'center', mt: 4, mb: 2 }}>開始規劃你的旅程</Typography>
+
+const Content = () => (
+    <Grid
+        container
+        direction="column"
+        alignItems="center"
+        justifyContent="center"
+        sx={{ minHeight: '100vh', textAlign: 'center' }}
+    >
+
         <TravelSearchForm />
-    </div>
+    </Grid>
 );
 
-export default Home;
+export default Content;
