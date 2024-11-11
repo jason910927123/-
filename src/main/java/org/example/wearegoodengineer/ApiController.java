@@ -33,7 +33,7 @@ public class ApiController {
     public ResponseEntity<?> moreOpenAI(@RequestBody Map<String, Object> data) {
         try {
             // 調用服務層來處理具體邏輯
-            List<Map<String, Object>> responseList = openAIService.generateTravelPlan(data);
+            String responseList = openAIService.generateTravelPlan(data);
             return ResponseEntity.ok(Map.of("response", responseList));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));

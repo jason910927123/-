@@ -12,9 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -25,7 +22,7 @@ public class OpenAIService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    public List<Map<String, Object>> generateTravelPlan(Map<String, Object> data) {
+    public String generateTravelPlan(Map<String, Object> data) {
         // 確認 data 不為空
         if (data == null || data.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No data provided");
@@ -162,46 +159,46 @@ public class OpenAIService {
 
             // 輸出 content
             System.out.println(content);
-
+            return content;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error parsing response JSON", e);
         }
         // 解析並回傳結果
-        JSONObject responseJson = new JSONObject(openaiResponse.getBody());
-        if (responseJson.has("choices") && responseJson.getJSONArray("choices").length() > 0) {
-            String content = responseJson.getJSONArray("choices")
-                    .getJSONObject(0)
-                    .getJSONObject("message")
-                    .getString("content")
-                    .trim();
-
-            // 假設回應內容為 JSON 格式的行程資料，解析並將其存入陣列
-            JSONArray travelArray = new JSONArray(content);
-            List<Map<String, Object>> travelDataList = new ArrayList<>();
-
-            for (int i = 0; i < travelArray.length(); i++) {
-                JSONObject travelItem = travelArray.getJSONObject(i);
-
-                // 提取所需字段
-                String date = travelItem.optString("date", "");  // 日期
-                String time = travelItem.optString("time", "");  // 時間
-                String placeName = travelItem.optString("place", "");  // 地點
-                double latitude = travelItem.optDouble("latitude", 0);  // 緯度
-                double longitude = travelItem.optDouble("longitude", 0);  // 經度
-
-                // 封裝成 Map
-                Map<String, Object> travelData = new HashMap<>();
-                travelData.put("date", date);
-                travelData.put("time", time);
-                travelData.put("place", placeName);
-                travelData.put("latitude", latitude);
-                travelData.put("longitude", longitude);
-
-                travelDataList.add(travelData);
-            }
-            return travelDataList;
-        } else {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid response from OpenAI");
-        }
+//        JSONObject responseJson = new JSONObject(openaiResponse.getBody());
+//        if (responseJson.has("choices") && responseJson.getJSONArray("choices").length() > 0) {
+//            String content = responseJson.getJSONArray("choices")
+//                    .getJSONObject(0)
+//                    .getJSONObject("message")
+//                    .getString("content")
+//                    .trim();
+//
+//            // 假設回應內容為 JSON 格式的行程資料，解析並將其存入陣列
+//            JSONArray travelArray = new JSONArray(content);
+//            List<Map<String, Object>> travelDataList = new ArrayList<>();
+//
+//            for (int i = 0; i < travelArray.length(); i++) {
+//                JSONObject travelItem = travelArray.getJSONObject(i);
+//
+//                // 提取所需字段
+//                String date = travelItem.optString("date", "");  // 日期
+//                String time = travelItem.optString("time", "");  // 時間
+//                String placeName = travelItem.optString("place", "");  // 地點
+//                double latitude = travelItem.optDouble("latitude", 0);  // 緯度
+//                double longitude = travelItem.optDouble("longitude", 0);  // 經度
+//
+//                // 封裝成 Map
+//                Map<String, Object> travelData = new HashMap<>();
+//                travelData.put("date", date);
+//                travelData.put("time", time);
+//                travelData.put("place", placeName);
+//                travelData.put("latitude", latitude);
+//                travelData.put("longitude", longitude);
+//
+//                travelDataList.add(travelData);
+//            }
+//            return travelDataList;
+//        } else {
+//            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid response from OpenAI");
+//        }
     }
 }

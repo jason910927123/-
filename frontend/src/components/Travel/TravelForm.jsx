@@ -1,4 +1,4 @@
-ㄇ// Content.js
+// Content.js
 import React, { useState } from 'react';
 import {
     Collapse,
