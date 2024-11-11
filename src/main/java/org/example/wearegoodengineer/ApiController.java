@@ -1,7 +1,7 @@
 package org.example.wearegoodengineer;
 
 import com.google.maps.model.PlacesSearchResult;
-import org.example.wearegoodengineer.service.GoogleMapsService;
+//import org.example.wearegoodengineer.service.GoogleMapsService;
 import org.example.wearegoodengineer.service.OpenAIService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -15,13 +15,13 @@ import java.util.Map;
 public class ApiController {
 
     private final OpenAIService openAIService;
-    private final GoogleMapsService googleMapsService;
+//    private final GoogleMapsService googleMapsService;
 
     // 使用構造函數注入 OpenAIService 和 GoogleMapsService
     @Autowired
     public ApiController(OpenAIService openAIService, GoogleMapsService googleMapsService) {
         this.openAIService = openAIService;
-        this.googleMapsService = googleMapsService;
+//        this.googleMapsService = googleMapsService;
     }
 
     @GetMapping("/hello")
