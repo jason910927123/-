@@ -1,8 +1,10 @@
 package org.example.wearegoodengineer;
 
 import com.google.maps.model.PlacesSearchResult;
-//import org.example.wearegoodengineer.service.GoogleMapsService;
+import org.example.wearegoodengineer.service.GoogleMapsService;
 import org.example.wearegoodengineer.service.OpenAIService;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,14 +18,15 @@ import java.util.Map;
 public class ApiController {
 
     private final OpenAIService openAIService;
-//    private final GoogleMapsService googleMapsService;
+    private final GoogleMapsService googleMapsService;
 
     // 使用構造函數注入 OpenAIService 和 GoogleMapsService
     @Autowired
     public ApiController(OpenAIService openAIService, GoogleMapsService googleMapsService) {
         this.openAIService = openAIService;
-//        this.googleMapsService = googleMapsService;
+        this.googleMapsService = googleMapsService;
     }
+
 
     @GetMapping("/hello")
     public String hello() {
@@ -35,7 +38,18 @@ public class ApiController {
         try {
             // 調用服務層來處理具體邏輯
             String responseList = openAIService.generateTravelPlan(data);
-            return ResponseEntity.ok(Map.of("response", responseList));
+            JSONObject jsonObject = new JSONObject(responseList);
+
+            // 獲取 dailyPlan 和 sparePlan
+            JSONArray dailyPlan = jsonObject.optJSONArray("dailyPlan");
+            JSONArray sparePlan = jsonObject.optJSONArray("sparePlan");
+
+            // 建立回傳的 Map，手動添加條目
+            Map<String, Object> responseMap = new HashMap<>();
+            responseMap.put("dailyPlan", dailyPlan != null ? dailyPlan.toList() : null);
+            responseMap.put("sparePlan", sparePlan != null ? sparePlan.toList() : null);
+
+            return ResponseEntity.ok(responseMap);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }

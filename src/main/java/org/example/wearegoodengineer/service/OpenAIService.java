@@ -23,183 +23,158 @@ public class OpenAIService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     public String generateTravelPlan(Map<String, Object> data) {
-        // 檢查傳入的資料是否為空
-        if (data == null || data.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No data provided");
-        }
+        // 檢查傳入資料
+        validateInput(data);
 
-        // 提取必須的資料字段
+        // 提取資料字段
         String budget = String.valueOf(data.get("budget"));
         String purpose = String.valueOf(data.get("purpose"));
         String startDate = String.valueOf(data.get("startDate"));
         String endDate = String.valueOf(data.get("endDate"));
         String day = String.valueOf(data.get("day"));
         String place = String.valueOf(data.get("place"));
+        String commuting = String.valueOf(data.get("commuting"));
 
-        // 檢查是否有缺少的必要字段
-        if (budget == null || purpose == null || startDate == null || endDate == null || day == null || place == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing one or more required fields");
-        }
 
-        // 生成 prompt
-        String prompt = generatePrompt(budget, purpose, startDate, endDate, day, place);
+        int sparePlanCount = data.containsKey("sparePlanCount") ?
+                Integer.parseInt(String.valueOf(data.get("sparePlanCount"))) : 3;
 
-        // 配置請求頭和負載
+        // 每日活動數量（預設為 5）
+        int activityCountPerDay = data.containsKey("activityCountPerDay") ?
+                Integer.parseInt(String.valueOf(data.get("activityCountPerDay"))) : 5;
+
+
+        String prompt = generatePrompt(budget, purpose, startDate, endDate, day, place, commuting, sparePlanCount, activityCountPerDay);
+
+
         HttpHeaders headers = new HttpHeaders();
         headers.set("Content-Type", "application/json");
         headers.set("Authorization", "Bearer " + openaiApiKey);
 
         JSONObject payload = new JSONObject();
         payload.put("model", "gpt-4o-mini");
-        payload.put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", "幫我補全我以下的JSON(Only json)" + prompt)));
-        payload.put("max_tokens", 2000);
+        payload.put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", prompt)));
+        payload.put("max_tokens", 3000);
 
         HttpEntity<String> entity = new HttpEntity<>(payload.toString(), headers);
 
-        // 發送請求到 OpenAI API
+
         String url = "https://api.openai.com/v1/chat/completions";
         ResponseEntity<String> openaiResponse = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
-        // 檢查 API 回應的有效性
-        String responseBody = openaiResponse.getBody();
-        if (responseBody == null || responseBody.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Empty response from OpenAI API");
+
+        return processOpenAIResponse(openaiResponse.getBody());
+    }
+
+    private void validateInput(Map<String, Object> data) {
+        if (data == null || data.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No data provided");
         }
 
-        try {
-            // 解析 JSON 字串
-            JSONObject jsonResponse = new JSONObject(responseBody);
-            if (!jsonResponse.has("choices") || jsonResponse.getJSONArray("choices").length() == 0) {
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No valid choices in OpenAI response");
+        if (!data.containsKey("budget") || !data.containsKey("purpose") ||
+                !data.containsKey("startDate") || !data.containsKey("endDate") ||
+                !data.containsKey("day") || !data.containsKey("place") || !data.containsKey("commuting")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing one or more required fields");
+        }
+    }
+
+    private String generatePrompt(String budget, String purpose, String startDate, String endDate, String day, String place, String commuting, int sparePlanCount, int activityCountPerDay) {
+        StringBuilder dailyPlanBuilder = new StringBuilder();
+        int totalDays = Integer.parseInt(day);
+
+
+        for (int i = 1; i <= totalDays; i++) {
+            dailyPlanBuilder.append(String.format(
+                    "{\n" +
+                            "  \"day\": \"%d\",\n" +
+                            "  \"date\": \"待生成日期\",\n" +
+                            "  \"activities\": [\n", i));
+
+
+            for (int j = 1; j <= activityCountPerDay; j++) {
+                dailyPlanBuilder.append(String.format(
+                        "    {\"timeOfDay\": \"Activity %d\", \"activity\": \"\", \"place\": \"\", \"description\": \"\", \"budgetAllocation\": \"\"}%s\n",
+                        j,
+                        j < activityCountPerDay ? "," : ""
+                ));
             }
 
-            // 獲取 "choices" 陣列的第一個元素
-            JSONObject firstChoice = jsonResponse.getJSONArray("choices").getJSONObject(0);
-            String content = firstChoice.getJSONObject("message").getString("content");
-
-            // 清理 content 中的無用部分
-            String cleanContent = cleanJsonContent(content);
-
-            // 解析清理後的 JSON
-            JSONObject jsonObject = new JSONObject(cleanContent);
-            return jsonObject.toString();
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error parsing response JSON", e);
+            dailyPlanBuilder.append(
+                    "  ],\n" +
+                            "  \"recommendedRestaurants\": [],\n" +
+                            "  \"dailyBudget\": \"\"\n" +
+                            "},");
         }
-    }
 
-    // 生成 prompt
-    private String generatePrompt(String budget, String purpose, String startDate, String endDate, String day, String place) {
+
+        StringBuilder sparePlanBuilder = new StringBuilder();
+        for (int i = 1; i <= sparePlanCount; i++) {
+            sparePlanBuilder.append(String.format(
+                    "{\n" +
+                            "  \"reason\": \"備用方案原因 %d\",\n" +
+                            "  \"alternativeActivity\": \"\",\n" +
+                            "  \"place\": \"\",\n" +
+                            "  \"budgetAllocation\": \"\"\n" +
+                            "}", i));
+
+            if (i < sparePlanCount) {
+                sparePlanBuilder.append(",");
+            }
+        }
+
+
         return String.format(
-                "{\n" +
-                        "  \"request\": {\n" +
-                        "    \"prompt\": {\n" +
-                        "      \"budget\": \"%s\",\n" +
-                        "      \"purpose\": \"%s\",\n" +
-                        "      \"startDate\": \"%s\",\n" +
-                        "      \"endDate\": \"%s\",\n" +
-                        "      \"durationDays\": \"%s\",\n" +
-                        "      \"destination\": \"%s\",\n" +
-                        "      \"details\": {\n" +
-                        "        \"overview\": \"作為一位專業的旅行規劃師，請根據以下條件設計一個詳細的旅行行程：\",\n" +
-                        "        \"budgetLimit\": \"%s\",\n" +
-                        "        \"travelPurpose\": \"%s\",\n" +
-                        "        \"startDate\": \"%s\",\n" +
-                        "        \"plannedDuration\": \"%s 天\",\n" +
-                        "        \"destination\": \"%s\",\n" +
-                        "        \"requirements\": [\n" +
-                        "          \"每日的具體行程安排，包括上午、下午和晚間的活動建議。\",\n" +
-                        "          \"推薦的景點（至少三個），並附上簡短的描述和適合的時間段。\",\n" +
-                        "          \"餐廳建議，經緯度位置。\",\n" +
-                        "          \"每日預算分配和建議開銷，以確保符合整體預算限制。\"\n" +
-                        "        ]\n" +
-                        "      }\n" +
-                        "    }\n" +
-                        "  },\n" +
-                        "  \"dailyPlan\": [\n" +
-                        "    {\n" +
-                        "      \"day\": \"1\",\n" +
-                        "      \"date\": \"%s\",\n" +
-                        "      \"activities\": [\n" +
-                        "        {\n" +
-                        "          \"timeOfDay\": \"Morning\",\n" +
-                        "          \"activity\": \"%s\",\n" +
-                        "          \"description\": \"\",\n" +
-                        "          \"suggestedTime\": \"\",\n" +
-                        "          \"budgetAllocation\": \"\"\n" +
-                        "        },\n" +
-                        "        {\n" +
-                        "          \"timeOfDay\": \"Noon\",\n" +
-                        "          \"activity\": \"%s\",\n" +
-                        "          \"description\": \"\",\n" +
-                        "          \"suggestedTime\": \"\",\n" +
-                        "          \"budgetAllocation\": \"\"\n" +
-                        "        },\n" +
-                        "        {\n" +
-                        "          \"timeOfDay\": \"Night\",\n" +
-                        "          \"activity\": \"%s\",\n" +
-                        "          \"description\": \"\",\n" +
-                        "          \"suggestedTime\": \"\",\n" +
-                        "          \"budgetAllocation\": \"\"\n" +
-                        "        }\n" +
-                        "      ],\n" +
-                        "      \"recommendedRestaurants\": [\n" +
-                        "        {\n" +
-                        "          \"name\": \"\",\n" +
-                        "          \"latitude\": \"\",\n" +
-                        "          \"longitude\": \"\"\n" +
-                        "        }\n" +
-                        "      ],\n" +
-                        "      \"dailyBudget\": \"\"\n" +
-                        "    }\n" +
-                        "  ],\n" +
-                        "  \"budgetSummary\": {\n" +
-                        "    \"totalBudget\": \"%s\",\n" +
-                        "    \"dailyAverage\": \"\",\n" +
-                        "    \"remainingBudget\": \"\",\n" +
-                        "    \"expenses\": [\n" +
-                        "      {\n" +
-                        "        \"category\": \"\",\n" +
-                        "        \"estimatedCost\": \"\"\n" +
-                        "      }\n" +
-                        "    ]\n" +
-                        "  },\n" +
-                        "  \"sparePlan\": [\n" +
-                        "    {\n" +
-                        "      \"name\": \"\",\n" +
-                        "      \"description\": \"\",\n" +
-                        "      \"bestTime\": \"\"\n" +
-                        "    }\n" +
-                        "  ]\n" +
-                        "} ",
-                budget, purpose, startDate, endDate, day, place,
-                budget, purpose, startDate, day, place,
-                startDate, "早上活動", "中午活動", "晚上活動",
-                budget
-        );
+                "請幫我規劃一個完整的旅遊行程，包括每日行程與備用計劃，條件如下：\n" +
+                        "1. 預算：%s 元\n" +
+                        "2. 目的：%s\n" +
+                        "3. 旅遊日期：%s 至 %s\n" +
+                        "4. 總天數：%s 天\n" +
+                        "5. 目的地：%s\n" +
+                        "6. 交通方式：%s\n" +
+                        "請以 JSON 格式返回，範例格式如下：\n" +
+                        "{\n" +
+                        "  \"dailyPlan\": [%s],\n" +
+                        "  \"sparePlan\": [%s]\n" +
+                        "}",
+                budget, purpose, startDate, endDate, day, place, commuting, dailyPlanBuilder.toString(), sparePlanBuilder.toString());
     }
 
-    // 清理 content 字符串中的無用部分
-    private String cleanJsonContent(String content) {
-        // 1. 移除 Markdown 語法
-        content = content.replace("```json\n", "").replace("\n```", "");
-
-        // 2. 去除多餘的空格
-        content = content.replaceAll("\\s*\\{\\s*", "{")
-                .replaceAll("\\s*\\}\\s*", "}")
-                .replaceAll("\\s*\\[\\s*", "[")
-                .replaceAll("\\s*\\]\\s*", "]");
-
-        // 3. 驗證 JSON 完整性
-        try {
-            // 嘗試將清理後的字串轉換成 JSON 物件
-            new JSONObject(content);
-        } catch (Exception e) {
-            // 如果解析失敗，回傳錯誤信息
-            throw new IllegalArgumentException("JSON 格式不完整或有錯誤: " + e.getMessage());
+    private String processOpenAIResponse(String responseBody) {
+        if (responseBody == null || responseBody.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "OpenAI API response is empty");
         }
 
-        return content;
+        JSONObject jsonResponse = new JSONObject(responseBody);
+        if (!jsonResponse.has("choices") || jsonResponse.getJSONArray("choices").isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid response structure: missing 'choices'");
+        }
+
+        JSONObject choice = jsonResponse.getJSONArray("choices").getJSONObject(0);
+        if (!choice.has("message") || !choice.getJSONObject("message").has("content")) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid response structure: missing 'message.content'");
+        }
+
+        String content = choice.getJSONObject("message").getString("content");
+
+
+        return cleanJsonContent(content);
+    }
+
+    private String cleanJsonContent(String content) {
+        if (content == null || content.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Generated content is empty");
+        }
+
+
+        String cleanContent = content.replaceAll("```json\\s*", "").replaceAll("\\s*```", "").trim();
+
+
+        try {
+            new JSONObject(cleanContent);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Cleaned content is not valid JSON: " + cleanContent, e);
+        }
+
+        return cleanContent;
     }
 }
-
