@@ -24,7 +24,7 @@ public class GoogleMapsService {
 
     private final GeoApiContext context;
 
-    // 建構子 - 初始化 GeoApiContext 並設置 API Key
+
     public GoogleMapsService(@Value("${google.maps.apiKey}") String apiKey) {
         this.context = new GeoApiContext.Builder()
                 .apiKey(apiKey)
@@ -79,7 +79,7 @@ public class GoogleMapsService {
     private PlaceDetails getPlaceDetails(String placeId) {
         try {
             return PlacesApi.placeDetails(context, placeId)
-                    .language("zh-TW") // 設定語言為繁體中文
+                    .language("zh-TW")
                     .await();
         } catch (Exception e) {
             e.printStackTrace();
