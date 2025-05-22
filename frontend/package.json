@@ -18,6 +18,7 @@
     "@mui/styled-engine-sc": "^6.1.5",
     "@react-spring/web": "^9.7.5",
     "axios": "^1.7.7",
+    "html2pdf.js": "^0.10.3",
     "react": "^18.3.1",
     "react-beautiful-dnd": "^13.1.1",
     "react-dom": "^18.3.1",
