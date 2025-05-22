@@ -3,21 +3,18 @@ package org.example.wearegoodengineer.service;
 import com.google.maps.GeoApiContext;
 import com.google.maps.PlacesApi;
 import com.google.maps.model.PlaceDetails;
+import com.google.maps.model.PlacesSearchResponse;
 import com.google.maps.model.PriceLevel;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
-
-import jakarta.annotation.PostConstruct;
+import java.util.Random;
 import java.util.Map;
+import java.util.Random;
 
 @Service
 public class OpenAIService {
@@ -31,14 +28,21 @@ public class OpenAIService {
     private final RestTemplate restTemplate = new RestTemplate();
     private GeoApiContext context;
 
-    @PostConstruct
-    public void initGeoApiContext() {
-        if (googleMapsApiKey == null || googleMapsApiKey.isEmpty()) {
-            throw new IllegalStateException("Google Maps API key is not configured");
+    // 延迟初始化 GeoApiContext
+    private GeoApiContext getContext() {
+        if (this.context == null) {
+            synchronized (this) {
+                if (this.context == null) {
+                    if (googleMapsApiKey == null || googleMapsApiKey.trim().isEmpty()) {
+                        throw new IllegalStateException("Google Maps API key is not configured.");
+                    }
+                    this.context = new GeoApiContext.Builder()
+                            .apiKey(googleMapsApiKey)
+                            .build();
+                }
+            }
         }
-        this.context = new GeoApiContext.Builder()
-                .apiKey(googleMapsApiKey)
-                .build();
+        return this.context;
     }
 
     public String generateTravelPlan(Map<String, Object> data) {
@@ -73,11 +77,26 @@ public class OpenAIService {
         HttpEntity<String> entity = new HttpEntity<>(payload.toString(), headers);
 
         String url = "https://api.openai.com/v1/chat/completions";
-        ResponseEntity<String> openaiResponse = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
-        String travelPlanJson = processOpenAIResponse(openaiResponse.getBody());
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
-        return addPriceDetailsToTravelPlan(travelPlanJson);
+            // 打印原始响应
+            System.out.println("Raw OpenAI Response: " + response.getBody());
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                System.err.println("OpenAI API returned error: " + response.getStatusCode());
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "OpenAI API error: " + response.getStatusCode());
+            }
+
+            String travelPlanJson = processOpenAIResponse(response.getBody());
+
+            // 添加价格信息
+            return addPriceDetailsToTravelPlan(travelPlanJson);
+        } catch (Exception e) {
+            System.err.println("Error calling OpenAI API: " + e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to call OpenAI API", e);
+        }
     }
 
     private void validateInput(Map<String, Object> data) {
@@ -92,9 +111,16 @@ public class OpenAIService {
         }
     }
 
+
+
     private String generatePrompt(String budget, String purpose, String startDate, String endDate, String day, String place, String commuting, int sparePlanCount, int activityCountPerDay) {
         StringBuilder dailyPlanBuilder = new StringBuilder();
         int totalDays = Integer.parseInt(day);
+
+
+        Random random = new Random();
+        int startHour = 9;
+        int endHour = 24;
 
         for (int i = 1; i <= totalDays; i++) {
             dailyPlanBuilder.append(String.format(
@@ -103,10 +129,16 @@ public class OpenAIService {
                             "  \"date\": \"待生成日期\",\n" +
                             "  \"activities\": [\n", i));
 
+            // 隨機生成具體的時間點
             for (int j = 1; j <= activityCountPerDay; j++) {
+                // 隨機生成時間 (例如：09:00, 10:30, 14:00 等)
+                int randomHour = random.nextInt(endHour - startHour + 1) + startHour;
+                int randomMinute = random.nextInt(4) * 15;
+                String timeOfDay = String.format("%02d:%02d", randomHour, randomMinute);
+
                 dailyPlanBuilder.append(String.format(
-                        "    {\"timeOfDay\": \"Activity %d\", \"activity\": \"\", \"place\": \"\", \"description\": \"\", \"budgetAllocation\": \"\"}%s\n",
-                        j,
+                        "    {\"timeOfDay\": \"%s\", \"activity\": \"\", \"place\": \"\", \"description\": \"\", \"budgetAllocation\": \"\"}%s\n",
+                        timeOfDay,
                         j < activityCountPerDay ? "," : ""
                 ));
             }
@@ -123,8 +155,8 @@ public class OpenAIService {
             sparePlanBuilder.append(String.format(
                     "{\n" +
                             "  \"reason\": \"備用方案原因 %d\",\n" +
-                            "  \"alternativeActivity\": \"\",\n" +
                             "  \"place\": \"\",\n" +
+                            "  \"alternativeActivity\": \"\",\n" +
                             "  \"budgetAllocation\": \"\"\n" +
                             "}", i));
 
@@ -149,59 +181,72 @@ public class OpenAIService {
                 budget, purpose, startDate, endDate, day, place, commuting, dailyPlanBuilder.toString(), sparePlanBuilder.toString());
     }
 
+
     private String processOpenAIResponse(String responseBody) {
-        if (responseBody == null || responseBody.isEmpty()) {
+        if (responseBody == null || responseBody.trim().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "OpenAI API response is empty");
         }
 
-        JSONObject jsonResponse = new JSONObject(responseBody);
-        if (!jsonResponse.has("choices") || jsonResponse.getJSONArray("choices").isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid response structure: missing 'choices'");
+        try {
+            System.out.println("Processing OpenAI Response: " + responseBody);
+
+            JSONObject jsonResponse = new JSONObject(responseBody);
+            if (!jsonResponse.has("choices") || jsonResponse.getJSONArray("choices").isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid response: missing 'choices'");
+            }
+
+            JSONObject choice = jsonResponse.getJSONArray("choices").getJSONObject(0);
+            if (!choice.has("message") || !choice.getJSONObject("message").has("content")) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid response: missing 'message.content'");
+            }
+
+            return cleanJsonContent(choice.getJSONObject("message").getString("content"));
+
+        } catch (Exception e) {
+            System.err.println("Error parsing OpenAI response: " + responseBody);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to parse OpenAI API response", e);
         }
-
-        JSONObject choice = jsonResponse.getJSONArray("choices").getJSONObject(0);
-        if (!choice.has("message") || !choice.getJSONObject("message").has("content")) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid response structure: missing 'message.content'");
-        }
-
-        String content = choice.getJSONObject("message").getString("content");
-
-        return cleanJsonContent(content);
     }
 
     private String cleanJsonContent(String content) {
-        if (content == null || content.isEmpty()) {
+        if (content == null || content.trim().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Generated content is empty");
         }
 
-        String cleanContent = content.replaceAll("```json\\s*", "").replaceAll("\\s*```", "").trim();
-
-        try {
-            new JSONObject(cleanContent);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Cleaned content is not valid JSON: " + cleanContent, e);
-        }
-
-        return cleanContent;
+        return content.replaceAll("```json\\s*", "").replaceAll("\\s*```", "").trim();
     }
 
-    // 從 Google Maps API 取得地點價格等級並加入行程中
     private String addPriceDetailsToTravelPlan(String travelPlanJson) {
         JSONObject travelPlan = new JSONObject(travelPlanJson);
 
-        // 遍歷每日行程，為每個活動加入價格等級
-        JSONArray dailyPlan = travelPlan.getJSONArray("dailyPlan");
+        JSONArray dailyPlan = travelPlan.optJSONArray("dailyPlan");
+        if (dailyPlan == null) return travelPlan.toString();
+
         for (int i = 0; i < dailyPlan.length(); i++) {
             JSONObject dailyActivity = dailyPlan.getJSONObject(i);
-            JSONArray activities = dailyActivity.getJSONArray("activities");
+            JSONArray activities = dailyActivity.optJSONArray("activities");
+            if (activities == null) continue;
+
             for (int j = 0; j < activities.length(); j++) {
                 JSONObject activity = activities.getJSONObject(j);
-                String placeId = activity.getString("place"); // 假設每個活動的 place 欄位包含 Google Maps 的 Place ID
+                String placeName = activity.optString("place", "");
 
-                // 確保 placeId 存在且有效
-                if (placeId != null && !placeId.isEmpty()) {
-                    double priceLevel = getPlacePriceFromGoogleMaps(placeId);
-                    activity.put("priceLevel", priceLevel); // 在每個活動中加入價格等級
+                if (placeName.isEmpty()) {
+                    System.err.println("Skipping activity with missing place name: " + activity);
+                    continue;
+                }
+
+                String placeId = getPlaceId(placeName);
+                if (placeId == null) {
+                    System.err.println("Skipping activity due to missing placeId for place name: " + placeName);
+                    continue;
+                }
+
+                PlaceDetails details = getPlaceDetailsFromGoogleMaps(placeId);
+                if (details != null && details.priceLevel != null) {
+                    activity.put("priceLevel", priceLevelToString(details.priceLevel));
+                } else {
+                    activity.put("priceLevel", "未知");
                 }
             }
         }
@@ -209,59 +254,58 @@ public class OpenAIService {
         return travelPlan.toString();
     }
 
-    // 取得 Google Maps 中地點的價格等級
-    private double getPlacePriceFromGoogleMaps(String placeId) {
+    private String getPlaceId(String placeName) {
         try {
-            PlaceDetails placeDetails = PlacesApi.placeDetails(context, placeId).await();
-            if (placeDetails != null && placeDetails.priceLevel != null) {
-                return priceLevelToDouble(placeDetails.priceLevel);
+            PlacesSearchResponse response = PlacesApi.textSearchQuery(getContext(), placeName).await();
+            if (response.results != null && response.results.length > 0) {
+                return response.results[0].placeId;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("Error fetching Place ID for place name: " + placeName + ", error: " + e.getMessage());
         }
-        return -1.0; // 返回 -1 代表未找到有效的價格資訊
+        return null;
     }
 
-    // 將價格等級轉換為數字
-    private double priceLevelToDouble(PriceLevel priceLevel) {
+    private PlaceDetails getPlaceDetailsFromGoogleMaps(String placeId) {
+        try {
+            PlaceDetails placeDetails = PlacesApi.placeDetails(getContext(), placeId).await();
+            if (placeDetails != null) {
+                // 获取常规的开放时间
+                if (placeDetails.openingHours != null) {
+                    System.out.println("Opening Hours:");
+
+                    // 打印每天的开放时间
+                    for (String day : placeDetails.openingHours.weekdayText) {
+                        System.out.println(day);
+                    }
+
+                    // 如果有 "periods" 字段，可以打印
+                    if (placeDetails.openingHours.periods != null) {
+                        for (var period : placeDetails.openingHours.periods) {
+                            System.out.println("Day: " + period.open.day + ", Open: " + period.open.time + ", Close: " + period.close.time);
+                        }
+                    }
+                }
+            }
+            return placeDetails;
+        } catch (Exception e) {
+            System.err.println("Error fetching Place details for placeId: " + placeId + ", error: " + e.getMessage());
+        }
+        return null;
+    }
+
+
+
+
+    private String priceLevelToString(PriceLevel priceLevel) {
         switch (priceLevel) {
-            case FREE:
-                return 0.0;
-            case INEXPENSIVE:
-                return 1.0;
-            case MODERATE:
-                return 2.0;
-            case EXPENSIVE:
-                return 3.0;
-            case VERY_EXPENSIVE:
-                return 4.0;
-            default:
-                return -1.0; // 返回 -1 代表未找到有效的價格等級
+            case FREE: return "免費";
+            case INEXPENSIVE: return "低價（約 100-300 元）";
+            case MODERATE: return "中價（約 300-600 元）";
+            case EXPENSIVE: return "高價（約 600-1000 元）";
+            case VERY_EXPENSIVE: return "非常高價（約 1000 元以上）";
+            default: return "未知";
         }
-    }
-
-    // 將價格等級轉換為價格範圍
-    private String priceLevelToEstimatedPriceRange(PriceLevel priceLevel) {
-        switch (priceLevel) {
-            case FREE:
-                return "免費";
-            case INEXPENSIVE:
-                return "低價（約 100-300 元）";
-            case MODERATE:
-                return "中價（約 300-600 元）";
-            case EXPENSIVE:
-                return "高價（約 600-1000 元）";
-            case VERY_EXPENSIVE:
-                return "非常高價（約 1000 元以上）";
-            default:
-                return "未知";
-        }
-    }
-
-
-
-    // 關閉資源
-    public void shutdown() {
-        context.shutdown();
     }
 }
+
