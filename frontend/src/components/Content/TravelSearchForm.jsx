@@ -22,6 +22,7 @@ const TravelSearchForm = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [budget, setBudget] = useState('');
+    const [Departure,setDeparture] = useState('');
     const [destination, setDestination] = useState('');
     const [travelType, setTravelType] = useState('');
     const [transportationType, setTransportationType] = useState('');
@@ -50,7 +51,7 @@ const TravelSearchForm = () => {
         e.preventDefault();
 
         // 確認所有欄位均已填寫
-        if (!startDate || !endDate || !budget || !destination || !travelType || !transportationType) {
+        if (!startDate || !endDate || !budget || !destination ||!Departure|| !travelType || !transportationType) {
             alert('所有欄位均為必填，請檢查。');
             return;
         }
@@ -70,6 +71,7 @@ const TravelSearchForm = () => {
             startDate,
             endDate,
             day: calculateDays(startDate, endDate),
+            startplace:Departure,
             place: destination,
             commuting: transportationType === 'drive' ? '自駕' : '大眾運輸工具'
         };
@@ -94,7 +96,7 @@ const TravelSearchForm = () => {
         <>
             <Paper sx={{ maxWidth: "50%", minHeight: "50%", mt: 2, backgroundColor: '#fffd', padding: '10px', borderRadius: "2rem" }}>
                 <Typography variant="h4" sx={{ mb: 2 }}>
-                    開始規劃你的旅程
+                    開始規劃您的旅程
                 </Typography>
 
                 <CardContent>
@@ -130,6 +132,16 @@ const TravelSearchForm = () => {
                                     value={budget}
                                     onChange={(e) => setBudget(e.target.value)}
                                     placeholder="請輸入預算金額"
+                                    required
+                                />
+                            </Grid>
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    label="啟程地"
+                                    value={Departure}
+                                    onChange={(e) => setDeparture(e.target.value)}
+                                    placeholder="請輸入啟程地"
                                     required
                                 />
                             </Grid>

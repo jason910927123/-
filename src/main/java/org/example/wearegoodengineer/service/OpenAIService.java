@@ -54,6 +54,7 @@ public class OpenAIService {
         String startDate = String.valueOf(data.get("startDate"));
         String endDate = String.valueOf(data.get("endDate"));
         String day = String.valueOf(data.get("day"));
+        String startplace = String.valueOf(data.get("startplace"));
         String place = String.valueOf(data.get("place"));
         String commuting = String.valueOf(data.get("commuting"));
 
@@ -63,7 +64,7 @@ public class OpenAIService {
         int activityCountPerDay = data.containsKey("activityCountPerDay") ?
                 Integer.parseInt(String.valueOf(data.get("activityCountPerDay"))) : 5;
 
-        String prompt = generatePrompt(budget, purpose, startDate, endDate, day, place, commuting, sparePlanCount, activityCountPerDay);
+        String prompt = generatePrompt(budget, purpose, startDate, endDate, day,startplace, place, commuting, sparePlanCount, activityCountPerDay);
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("Content-Type", "application/json");
@@ -113,7 +114,7 @@ public class OpenAIService {
 
 
 
-    private String generatePrompt(String budget, String purpose, String startDate, String endDate, String day, String place, String commuting, int sparePlanCount, int activityCountPerDay) {
+    private String generatePrompt(String budget, String purpose, String startDate, String endDate, String day,String startplace, String place, String commuting, int sparePlanCount, int activityCountPerDay) {
         StringBuilder dailyPlanBuilder = new StringBuilder();
         int totalDays = Integer.parseInt(day);
 
@@ -131,13 +132,13 @@ public class OpenAIService {
 
             // 隨機生成具體的時間點
             for (int j = 1; j <= activityCountPerDay; j++) {
-                // 隨機生成時間 (例如：09:00, 10:30, 14:00 等)
+
                 int randomHour = random.nextInt(endHour - startHour + 1) + startHour;
                 int randomMinute = random.nextInt(4) * 15;
                 String timeOfDay = String.format("%02d:%02d", randomHour, randomMinute);
 
                 dailyPlanBuilder.append(String.format(
-                        "    {\"timeOfDay\": \"%s\", \"activity\": \"\", \"place\": \"\", \"description\": \"\", \"budgetAllocation\": \"\"}%s\n",
+                        "    {\"timeOfDay\": \"%s\", \"activity\": \"\",\"startplace\": \"\", \"place\": \"\", \"description\": \"\", \"budgetAllocation\": \"\"}%s\n",
                         timeOfDay,
                         j < activityCountPerDay ? "," : ""
                 ));
@@ -171,14 +172,16 @@ public class OpenAIService {
                         "2. 目的：%s\n" +
                         "3. 旅遊日期：%s 至 %s\n" +
                         "4. 總天數：%s 天\n" +
-                        "5. 目的地：%s\n" +
-                        "6. 交通方式：%s\n" +
+                        "5. 起點：%s\n" +
+                        "6. 目的地：%s\n" +
+                        "7. 交通方式：%s\n" +
                         "請以 JSON 格式返回，範例格式如下：\n" +
                         "{\n" +
                         "  \"dailyPlan\": [%s],\n" +
                         "  \"sparePlan\": [%s]\n" +
                         "}",
-                budget, purpose, startDate, endDate, day, place, commuting, dailyPlanBuilder.toString(), sparePlanBuilder.toString());
+                budget, purpose, startDate, endDate, day, startplace, place, commuting,
+                dailyPlanBuilder.toString(), sparePlanBuilder.toString());
     }
 
 
