@@ -12,9 +12,12 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
-import java.util.Random;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class OpenAIService {
@@ -73,7 +76,7 @@ public class OpenAIService {
         JSONObject payload = new JSONObject();
         payload.put("model", "gpt-4o-mini");
         payload.put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", prompt)));
-        payload.put("max_tokens", 3000);
+        payload.put("max_tokens", 5000);
 
         HttpEntity<String> entity = new HttpEntity<>(payload.toString(), headers);
 
@@ -221,9 +224,11 @@ public class OpenAIService {
 
     private String addPriceDetailsToTravelPlan(String travelPlanJson) {
         JSONObject travelPlan = new JSONObject(travelPlanJson);
-
         JSONArray dailyPlan = travelPlan.optJSONArray("dailyPlan");
         if (dailyPlan == null) return travelPlan.toString();
+
+        // 1. 收集所有需要查詢的地點任務
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
 
         for (int i = 0; i < dailyPlan.length(); i++) {
             JSONObject dailyActivity = dailyPlan.getJSONObject(i);
@@ -234,25 +239,29 @@ public class OpenAIService {
                 JSONObject activity = activities.getJSONObject(j);
                 String placeName = activity.optString("place", "");
 
-                if (placeName.isEmpty()) {
-                    System.err.println("Skipping activity with missing place name: " + activity);
-                    continue;
-                }
-
-                String placeId = getPlaceId(placeName);
-                if (placeId == null) {
-                    System.err.println("Skipping activity due to missing placeId for place name: " + placeName);
-                    continue;
-                }
-
-                PlaceDetails details = getPlaceDetailsFromGoogleMaps(placeId);
-                if (details != null && details.priceLevel != null) {
-                    activity.put("priceLevel", priceLevelToString(details.priceLevel));
-                } else {
-                    activity.put("priceLevel", "未知");
+                if (!placeName.isEmpty()) {
+                    // 為每個地點創建一個異步任務
+                    CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                        String placeId = getPlaceId(placeName);
+                        if (placeId != null) {
+                            PlaceDetails details = getPlaceDetailsFromGoogleMaps(placeId);
+                            // 更新 JSON (JSONObject 是線程安全的，但在高併發下建議小心處理)
+                            synchronized (activity) {
+                                if (details != null && details.priceLevel != null) {
+                                    activity.put("priceLevel", priceLevelToString(details.priceLevel));
+                                } else {
+                                    activity.put("priceLevel", "未知");
+                                }
+                            }
+                        }
+                    });
+                    futures.add(future);
                 }
             }
         }
+
+        // 2. 等待所有任務完成（設定逾時或全部完成）
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
         return travelPlan.toString();
     }
@@ -273,7 +282,7 @@ public class OpenAIService {
         try {
             PlaceDetails placeDetails = PlacesApi.placeDetails(getContext(), placeId).await();
             if (placeDetails != null) {
-                // 获取常规的开放时间
+                // 取得時間
                 if (placeDetails.openingHours != null) {
                     System.out.println("Opening Hours:");
 

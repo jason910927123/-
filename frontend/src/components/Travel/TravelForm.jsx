@@ -226,7 +226,7 @@ function Content() {
       setDailyPlan(updatedDailyPlan);
       setSparePlan(updatedSparePlan);
       handleCloseAddDialog();
-    }
+    }rdr4rd2qqqccc
   }
 
   function handleUpdateActivityTime(dayIndex, activityIndex, newTime) {

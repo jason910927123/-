@@ -1,109 +1,114 @@
 package org.example.wearegoodengineer.service;
 
 import com.google.maps.GeoApiContext;
-import com.google.maps.PhotoRequest;
 import com.google.maps.PlacesApi;
-import com.google.maps.model.PlaceDetails;
-import com.google.maps.model.PlacesSearchResponse;
-import com.google.maps.model.PlacesSearchResult;
-import com.google.maps.ImageResult;
+import com.google.maps.model.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.nio.file.Paths;
+import java.util.*;
 
 @Service
 public class GoogleMapsService {
 
     private final GeoApiContext context;
-
+    private final String apiKey;
+    private final RestTemplate restTemplate = new RestTemplate();
 
     public GoogleMapsService(@Value("${google.maps.apiKey}") String apiKey) {
+        this.apiKey = apiKey;
+
         this.context = new GeoApiContext.Builder()
                 .apiKey(apiKey)
                 .build();
     }
 
-    // Place Text Search 方法
+
     public List<Map<String, Object>> searchPlaces(String query, String saveDirectory) {
+        List<Map<String, Object>> resultList = new ArrayList<>();
+
         try {
-            PlacesSearchResponse response = PlacesApi.textSearchQuery(context, query)
-                    .language("zh-TW") // 設定語言為繁體中文
+            PlacesSearchResponse response = PlacesApi
+                    .textSearchQuery(context, query)
+                    .language("zh-TW")
                     .await();
-            PlacesSearchResult[] results = response.results;
-            List<Map<String, Object>> placeInfoList = new ArrayList<>();
 
-            for (PlacesSearchResult result : results) {
-                Map<String, Object> placeInfo = new HashMap<>();
-                placeInfo.put("place", result.name);
-                placeInfo.put("formattedAddress", result.formattedAddress);
-                placeInfo.put("placeId", result.placeId);
+            for (PlacesSearchResult place : response.results) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("name", place.name);
+                map.put("address", place.formattedAddress);
+                map.put("placeId", place.placeId);
 
-                // 取得地點的詳細資訊並顯示評分
-                PlaceDetails details = getPlaceDetails(result.placeId);
+                PlaceDetails details = getPlaceDetails(place.placeId);
+
                 if (details != null) {
-                    placeInfo.put("rating", details.rating);
-                    placeInfo.put("openingHours", details.openingHours);
+                    map.put("rating", details.rating);
+                    map.put("openingHours", details.openingHours);
 
-                    // 取得並儲存圖片
+                    // 處理照片（使用 URL）
                     if (details.photos != null && details.photos.length > 0) {
-                        String photoUrl = getPlacePhoto(details.photos[0].photoReference, saveDirectory);
-                        placeInfo.put("photos", photoUrl);
+                        String photoRef = details.photos[0].photoReference;
+                        String localUrl = downloadPhoto(photoRef, saveDirectory);
+                        map.put("photo", localUrl);
                     } else {
-                        placeInfo.put("photos", null);
+                        map.put("photo", null);
                     }
-                } else {
-                    placeInfo.put("rating", null);
-                    placeInfo.put("openingHours", null);
-                    placeInfo.put("photos", null);
                 }
 
-                placeInfoList.add(placeInfo);
+                resultList.add(map);
             }
 
-            return placeInfoList;
         } catch (Exception e) {
             e.printStackTrace();
-            return new ArrayList<>();
         }
+
+        return resultList;
     }
 
-    // 取得地點的詳細資訊
+
     private PlaceDetails getPlaceDetails(String placeId) {
         try {
             return PlacesApi.placeDetails(context, placeId)
                     .language("zh-TW")
                     .await();
         } catch (Exception e) {
-            e.printStackTrace();
             return null;
         }
     }
 
-    // 取得地點的第一張圖片並儲存
-    private String getPlacePhoto(String photoReference, String saveDirectory) {
+
+    private String downloadPhoto(String photoReference, String saveDirectory) {
         try {
-            PhotoRequest photoRequest = new PhotoRequest(context).photoReference(photoReference).maxWidth(400);
-            ImageResult imageResult = photoRequest.await();
-            if (imageResult != null && imageResult.imageData != null) {
-                Path filePath = Paths.get(saveDirectory, "photo_" + photoReference + ".jpg");
-                Files.write(filePath, imageResult.imageData);
-                return filePath.toUri().toString();
+            String photoUrl =
+                    "https://maps.googleapis.com/maps/api/place/photo"
+                            + "?maxwidth=400"
+                            + "&photo_reference=" + photoReference
+                            + "&key=" + apiKey;
+
+            byte[] bytes = restTemplate.getForObject(photoUrl, byte[].class);
+            if (bytes == null) return null;
+
+            String fileName = "photo_" + System.currentTimeMillis() + ".jpg";
+
+            Path dirPath = Paths.get(saveDirectory);
+            if (!Files.exists(dirPath)) {
+                Files.createDirectories(dirPath);
             }
+
+            Path filePath = dirPath.resolve(fileName);
+            Files.write(filePath, bytes);
+
+            return filePath.toUri().toString();
+
         } catch (Exception e) {
-            e.printStackTrace();
+            return null;
         }
-        return null;
     }
 
-    // 關閉資源
     public void shutdown() {
         context.shutdown();
     }

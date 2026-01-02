@@ -85,6 +85,7 @@ const TravelSearchForm = () => {
             } else {
                 alert('搜尋失敗，請檢查輸入。');
             }
+
         } catch (error) {
             alert('發生錯誤：' + error.message);
         } finally {

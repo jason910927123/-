@@ -27,7 +27,7 @@ dependencies {
     implementation 'org.postgresql:postgresql'
 
     // Google Maps
-    implementation 'com.google.maps:google-maps-services:2.2.0'
+    implementation 'com.google.maps:google-maps-services:0.13.0'
     implementation 'org.slf4j:slf4j-simple:1.7.25'
 
     // Utils
@@ -42,6 +42,8 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation 'org.postgresql:postgresql:42.6.0'
     implementation 'io.github.cdimascio:dotenv-java:2.2.4'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.jboss.logging:jboss-logging:3.5.3.Final'
 }
 
 tasks.named('test') {
